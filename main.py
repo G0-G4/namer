@@ -67,11 +67,11 @@ def getSongName(music_dir, file_name, ext, apikey):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=
-    'rename mp3 file to song name using https://audiotag.info/ api')
-    parser.add_argument('key', help='audiotag.info api key')
-    parser.add_argument('-d', help='music direcrotry', required=True)
-    parser.add_argument('-m', help='mask to identify wich files should be renaimed',
-        required=True)
+    'rename audio files to song names using https://audiotag.info/ API')
+    parser.add_argument('key', help='audiotag.info API key')
+    parser.add_argument('-d', help='music directory', required=True, metavar='DIRECTORY')
+    parser.add_argument('-m', help='mask to identify which files should be renamed',
+        required=True, metavar='MASK')
     args = parser.parse_args()
     apikey = args.key
     music_dir = os.path.abspath(args.d)
