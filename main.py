@@ -2,18 +2,25 @@ import requests
 import json
 import time
 import os
+import argparse
+import re
 
 
-def getSongName(filename):
+API = 'https://audiotag.info/api'
+
+def recognizeSong(file, apikey):
     start_time = time.time()
-    apikey = '' # generate and place here your unique API access key, the key
-
-    payload = {'action': 'identify', 'apikey': apikey, 'start_time':40, 'time_len':15}
-    result = requests.post('https://audiotag.info/api',data=payload, files={'file': open(filename, 'rb')})
-    print(result.text)
+    payload ={
+        'action': 'identify',
+        'apikey': apikey,
+        'start_time':40,
+        'time_len':15
+        }
+    result = requests.post(API,data=payload,
+        files={'file': open(file, 'rb')})
     result_object = json.loads(result.text)
     print(result_object)
-    if result_object['success']==True and result_object['job_status']=='wait' :
+    if result_object['success']==True and result_object['job_status']=='wait':
         token = result_object['token']
         n=1
         job_status = 'wait'
@@ -22,44 +29,69 @@ def getSongName(filename):
             print('request:%d'%(n))
             n+=1
             payload = {'action': 'get_result', 'token':token, 'apikey': apikey}
-            result = requests.post('https://audiotag.info/api',data=payload)
-            print(result.text)
+            result = requests.post(API,data=payload)
             result_object = json.loads(result.text)
             print(result_object)
             if 'success' in result_object and result_object['success']==True:
                 job_status = result_object['result']
 
     print(time.time() - start_time)
-    if (result_object['success']    and 
+    if (result_object['success']   and 
         not result_object['error'] and
         result_object['result'] == 'found'):
         return '-'.join(result_object['data'][0]['tracks'][0][:-2])
-        
     return ''
 
+def recognizeSong(file, apikey):
+    return "Name"
 
+def checkMask(mask, file):
+    return re.match(mask, file)
 
-music_dir = 'rock_album'
-i = 0
-for file in os.listdir(music_dir):
-    if 'Unknown' in file:
-        file_name = file[:-4]
-        os.system(f"ffmpeg -ss 40 -t 16 -i {os.path.join(music_dir, file)} -ar 8000 -ac 1 -vn {os.path.join(music_dir, file_name + '.wav')}")
-        if song := getSongName(music_dir + '/' + file_name + '.wav'):
-            song_name = ''
-            for s in song:
-                if s not in '+=[]:;«,./?\:*?«<>|':
-                    song_name += s
-            try:
-                os.rename(music_dir + '/' + file, music_dir + '/' + song_name + '.mp3')
-            except FileExistsError:
-                os.rename(music_dir + '/' + file, music_dir + '/' + song_name + str(i) + '.mp3')
-                i += 1
+def getFileNameAndExtension(file_with_ext):
+    dot = file_with_ext.rfind('.')
+    return file_with_ext[:dot if dot != -1 else len(file_with_ext)], file_with_ext[dot:]
 
-            os.remove(music_dir + '/' + file_name + '.wav')
-        else:
-            continue
+def getSongName(music_dir, file_name, ext, apikey):
+    file = os.path.join(music_dir, file_name + ext)
+    file_wav = os.path.join(music_dir, file_name + ".wav")
+    os.system(f'ffmpeg -ss 40 -t 16 -i "{file}" -ar 8000 -ac 1 -vn "{file_wav}"')
+    song_name = ''
+    if os.path.exists(file_wav):
+        os.remove(file_wav)
+        song_name = recognizeSong(file_wav, apikey) 
+    if song_name:
+        song_name = song_name.translate({ord(c): None for c in '+=[]:;«,./?\:*?«<>|'})
+        return song_name
+    return ''
 
-
-    # file_name = file[:-4]
-    # os.rename(music_dir + '/' + file, music_dir + '/' + file.replace(' ', '_'))
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=
+    'rename mp3 file to song name using https://audiotag.info/ api')
+    parser.add_argument('key', help='audiotag.info api key')
+    parser.add_argument('-d', help='music direcrotry', required=True)
+    parser.add_argument('-m', help='mask to identify wich files should be renaimed',
+        required=True)
+    args = parser.parse_args()
+    apikey = args.key
+    music_dir = os.path.abspath(args.d)
+    mask = args.m
+    print('files to be renamed:')
+    print('----------------')
+    i = 0
+    renamed = 0
+    for file in os.listdir(music_dir):
+        if checkMask(mask, file):
+            old_file_name, ext = getFileNameAndExtension(file)
+            if new_file_name := getSongName(music_dir, old_file_name, ext, apikey):
+                old_file = os.path.join(music_dir, file)
+                new_file = os.path.join(music_dir, new_file_name + ext)
+                if os.path.exists(new_file):
+                    os.rename(old_file, os.path.join(music_dir, new_file_name +
+                    str(renamed) + ext))
+                else:
+                    os.rename(old_file, new_file)
+                renamed += 1
+            i += 1
+    print('----------------')
+    print(f'renamed: {renamed}/{i}')
