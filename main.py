@@ -42,8 +42,8 @@ def recognizeSong(file, apikey):
         return '-'.join(result_object['data'][0]['tracks'][0][:-2])
     return ''
 
-def recognizeSong(file, apikey):
-    return "Name"
+# def recognizeSong(file, apikey):
+#     return "Name"
 
 def checkMask(mask, file):
     return re.match(mask, file)
